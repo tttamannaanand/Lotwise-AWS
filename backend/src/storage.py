@@ -59,7 +59,9 @@ class AwsStore:
         return f"workspaces/{ws}/imports/{import_id}/{name}"
 
     def put_file(self, ws, import_id, name, body):
-        self.s3.put_object(Bucket=self.bucket, Key=self._key(ws, import_id, name), Body=body.encode("utf-8"))
+        self.s3.put_object(
+            Bucket=self.bucket, Key=self._key(ws, import_id, name), Body=body.encode("utf-8")
+        )
 
     def get_file(self, ws, import_id, name):
         obj = self.s3.get_object(Bucket=self.bucket, Key=self._key(ws, import_id, name))
@@ -76,7 +78,10 @@ class AwsStore:
     def list_imports(self, ws):
         from boto3.dynamodb.conditions import Key
 
-        items, kwargs = [], {"KeyConditionExpression": Key("PK").eq(f"WS#{ws}") & Key("SK").begins_with("IMPORT#")}
+        items, kwargs = (
+            [],
+            {"KeyConditionExpression": Key("PK").eq(f"WS#{ws}") & Key("SK").begins_with("IMPORT#")},
+        )
         while True:
             r = self.table.query(**kwargs)
             items += r.get("Items", [])
@@ -101,7 +106,12 @@ class AwsStore:
         self.table.update_item(
             Key={"PK": "TEMPLATE", "SK": fp},
             UpdateExpression="SET mapping = :m, headers = :h, updatedAt = :t ADD uses :one",
-            ExpressionAttributeValues={":m": _ddb_safe(mapping), ":h": headers, ":t": _now(), ":one": 1},
+            ExpressionAttributeValues={
+                ":m": _ddb_safe(mapping),
+                ":h": headers,
+                ":t": _now(),
+                ":one": 1,
+            },
         )
 
 
@@ -122,7 +132,9 @@ class LocalStore:
         return (self._dir(ws, import_id) / name).read_text(encoding="utf-8")
 
     def put_import(self, ws, import_id, item):
-        (self._dir(ws, import_id) / "meta.json").write_text(json.dumps(dict(item, expiresAt=_expiry())))
+        (self._dir(ws, import_id) / "meta.json").write_text(
+            json.dumps(dict(item, expiresAt=_expiry()))
+        )
 
     def get_import(self, ws, import_id):
         p = self.root / "workspaces" / ws / "imports" / import_id / "meta.json"
@@ -132,7 +144,11 @@ class LocalStore:
         base = self.root / "workspaces" / ws / "imports"
         if not base.exists():
             return []
-        return [json.loads((d / "meta.json").read_text()) for d in base.iterdir() if (d / "meta.json").exists()]
+        return [
+            json.loads((d / "meta.json").read_text())
+            for d in base.iterdir()
+            if (d / "meta.json").exists()
+        ]
 
     def delete_import(self, ws, import_id):
         import shutil

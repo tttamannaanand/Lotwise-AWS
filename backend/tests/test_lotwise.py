@@ -86,7 +86,9 @@ def test_heuristic_maps_all_three_samples():
 
 
 def test_validate_mapping_drops_hallucinated_columns():
-    m = validate_mapping({"columns": {"date": "Not A Header", "symbol": "Market"}}, ["Market", "Date"])
+    m = validate_mapping(
+        {"columns": {"date": "Not A Header", "symbol": "Market"}}, ["Market", "Date"]
+    )
     assert m["columns"]["date"] is None
     assert m["columns"]["symbol"] == "Market"
 
@@ -128,20 +130,41 @@ def test_crypto_losses_not_set_off_and_swaps_taxed():
 
 
 def test_combined_tax_estimate():
-    legs = legs_for("broker_tradebook.csv") + legs_for("mf_statement.csv") + legs_for("crypto_exchange.csv")
+    legs = (
+        legs_for("broker_tradebook.csv")
+        + legs_for("mf_statement.csv")
+        + legs_for("crypto_exchange.csv")
+    )
     rep = build_report(legs, "2025-26")
     s = rep["summary"]
     eq, tax = s["equity"], s["tax"]
     net_st, net_lt = Decimal(eq["net_st"]), Decimal(eq["net_lt_before_exemption"])
     assert eq["ltcg_exemption_used"] == "125000.00"
-    expected = (net_st * Decimal("0.20") + (net_lt - 125000) * Decimal("0.125") + Decimal("64176") * Decimal("0.30")) * Decimal("1.04")
+    expected = (
+        net_st * Decimal("0.20")
+        + (net_lt - 125000) * Decimal("0.125")
+        + Decimal("64176") * Decimal("0.30")
+    ) * Decimal("1.04")
     assert abs(Decimal(tax["total"]) - expected) < Decimal("0.05")
     assert rep["years"] == ["2026-27", "2025-26"]
 
 
 def test_unmatched_sale_warns():
-    legs = [{"date": "2025-06-01", "asset_class": "equity", "key": "X", "symbol": "X", "isin": None, "side": "SELL",
-             "quantity": "10", "value_inr": "1000", "fees_inr": "0", "row": 1, "import_id": "t"}]
+    legs = [
+        {
+            "date": "2025-06-01",
+            "asset_class": "equity",
+            "key": "X",
+            "symbol": "X",
+            "isin": None,
+            "side": "SELL",
+            "quantity": "10",
+            "value_inr": "1000",
+            "fees_inr": "0",
+            "row": 1,
+            "import_id": "t",
+        }
+    ]
     rep = build_report(legs, "2025-26")
     assert any(w["code"] == "unmatched" for w in rep["warnings"])
     assert rep["summary"]["equity"]["st_gains"] == "0.00"
@@ -149,10 +172,32 @@ def test_unmatched_sale_warns():
 
 def test_unconfigured_year_has_no_tax():
     legs = [
-        {"date": "2023-06-01", "asset_class": "equity", "key": "X", "symbol": "X", "isin": None, "side": "BUY",
-         "quantity": "10", "value_inr": "1000", "fees_inr": "0", "row": 1, "import_id": "t"},
-        {"date": "2024-06-01", "asset_class": "equity", "key": "X", "symbol": "X", "isin": None, "side": "SELL",
-         "quantity": "10", "value_inr": "2000", "fees_inr": "0", "row": 2, "import_id": "t"},
+        {
+            "date": "2023-06-01",
+            "asset_class": "equity",
+            "key": "X",
+            "symbol": "X",
+            "isin": None,
+            "side": "BUY",
+            "quantity": "10",
+            "value_inr": "1000",
+            "fees_inr": "0",
+            "row": 1,
+            "import_id": "t",
+        },
+        {
+            "date": "2024-06-01",
+            "asset_class": "equity",
+            "key": "X",
+            "symbol": "X",
+            "isin": None,
+            "side": "SELL",
+            "quantity": "10",
+            "value_inr": "2000",
+            "fees_inr": "0",
+            "row": 2,
+            "import_id": "t",
+        },
     ]
     rep = build_report(legs, "2024-25")
     assert rep["summary"]["tax"] is None
@@ -162,27 +207,39 @@ def test_unconfigured_year_has_no_tax():
 
 
 def call(method, path, body=None, query=None):
-    r = handler({
-        "rawPath": path,
-        "requestContext": {"http": {"method": method}},
-        "body": json.dumps(body) if body is not None else None,
-        "queryStringParameters": query,
-    })
+    r = handler(
+        {
+            "rawPath": path,
+            "requestContext": {"http": {"method": method}},
+            "body": json.dumps(body) if body is not None else None,
+            "queryStringParameters": query,
+        }
+    )
     return r["statusCode"], json.loads(r["body"])
 
 
 def test_api_flow_and_template_reuse():
     ws = str(uuid.uuid4())
     for name in ("broker_tradebook.csv", "mf_statement.csv", "crypto_exchange.csv"):
-        code, prop = call("POST", "/imports", {"workspaceId": ws, "filename": name, "content": load(name)})
+        code, prop = call(
+            "POST", "/imports", {"workspaceId": ws, "filename": name, "content": load(name)}
+        )
         assert code == 200, prop
         assert prop["source"] == "keywords"
         assert prop["errorCount"] == 0
-        code, conf = call("POST", f"/imports/{prop['importId']}/confirm", {"workspaceId": ws, "mapping": prop["mapping"]})
+        code, conf = call(
+            "POST",
+            f"/imports/{prop['importId']}/confirm",
+            {"workspaceId": ws, "mapping": prop["mapping"]},
+        )
         assert code == 200 and conf["legCount"] > 0
 
     # Same layout again -> saved template, no AI or keyword guessing needed
-    code, prop = call("POST", "/imports", {"workspaceId": ws, "filename": "again.csv", "content": load("crypto_exchange.csv")})
+    code, prop = call(
+        "POST",
+        "/imports",
+        {"workspaceId": ws, "filename": "again.csv", "content": load("crypto_exchange.csv")},
+    )
     assert prop["source"] == "template"
 
     code, rep = call("GET", "/report", query={"workspaceId": ws, "fy": "2025-26"})
@@ -205,10 +262,26 @@ def test_bedrock_path_with_simulated_model(monkeypatch):
     import mapper
 
     reply = {
-        "columns": {"date": "Date", "symbol": "Market", "isin": None, "side": "Side", "quantity": "Executed Qty",
-                    "price": "Avg Price", "total_inr": "INR Value", "fees": "Made Up Column"},
-        "confidence": {"date": 0.97, "symbol": 0.95, "side": 0.99, "quantity": 0.9, "price": 0.7, "total_inr": 0.92},
-        "asset_class": "crypto", "day_first": True,
+        "columns": {
+            "date": "Date",
+            "symbol": "Market",
+            "isin": None,
+            "side": "Side",
+            "quantity": "Executed Qty",
+            "price": "Avg Price",
+            "total_inr": "INR Value",
+            "fees": "Made Up Column",
+        },
+        "confidence": {
+            "date": 0.97,
+            "symbol": 0.95,
+            "side": 0.99,
+            "quantity": 0.9,
+            "price": 0.7,
+            "total_inr": 0.92,
+        },
+        "asset_class": "crypto",
+        "day_first": True,
         "side_values": {"buy": ["BUY"], "sell": ["SELL"]},
         "notes": ["Fees are charged in different coins; they are not deductible for crypto."],
     }
@@ -216,9 +289,13 @@ def test_bedrock_path_with_simulated_model(monkeypatch):
     class FakeClient:
         def converse(self, **kwargs):
             assert "INR Value" in kwargs["messages"][0]["content"][0]["text"]
-            return {"output": {"message": {"content": [{"text": "Here you go:\n" + json.dumps(reply)}]}}}
+            return {
+                "output": {"message": {"content": [{"text": "Here you go:\n" + json.dumps(reply)}]}}
+            }
 
-    monkeypatch.setitem(sys.modules, "boto3", types.SimpleNamespace(client=lambda name: FakeClient()))
+    monkeypatch.setitem(
+        sys.modules, "boto3", types.SimpleNamespace(client=lambda name: FakeClient())
+    )
     monkeypatch.setenv("BEDROCK_ENABLED", "true")
     monkeypatch.setenv("BEDROCK_MODEL_ID", "test-model")
 

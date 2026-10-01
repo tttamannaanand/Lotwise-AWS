@@ -2,7 +2,14 @@
 
 Capital gains for Indian stocks, mutual funds and crypto, from any broker's export.
 
+[![CI](https://github.com/tttamannaanand/Lotwise-AWS/actions/workflows/ci.yml/badge.svg)](https://github.com/tttamannaanand/Lotwise-AWS/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+![Python 3.12](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)
+![AWS SAM](https://img.shields.io/badge/AWS-Lambda%20·%20API%20Gateway%20·%20DynamoDB%20·%20S3%20·%20Bedrock-FF9900?logo=amazonwebservices&logoColor=white)
+
 **Live app:** https://7rml52kocf.execute-api.us-east-1.amazonaws.com
+
+<img src="docs/report.png" alt="Lotwise report for three sample statements: estimated tax ₹48,194 split across short-term equity, long-term equity and crypto, with every sale traced to its purchase lots" width="70%">
 
 Upload tradebooks from as many brokers and exchanges as you use. Lotwise reads the columns with AI (Amazon Bedrock), matches every sale to the purchase lots it came from (FIFO), and applies India's capital gains rules for the financial year: equity short-term vs long-term with the ₹1.25 lakh exemption, and the flat-rate crypto (VDA) regime where losses can't be set off.
 
@@ -61,7 +68,15 @@ npm run dev
 
 Click **Try three sample statements**, then **Import all 3 files**. Expected result for FY 2025-26: estimated tax ₹48,194.
 
-Tests: `cd backend && pip install pytest && python3 -m pytest -q` (17 tests, including hand-verified tax figures and simulated Bedrock responses).
+## Development
+
+```bash
+pip install -r requirements-dev.txt
+pytest -q backend/tests     # 17 tests: hand-verified tax figures, FIFO edge cases, simulated Bedrock replies
+ruff check . && ruff format --check .
+```
+
+CI runs these plus a frontend build, `npm audit` and `cfn-lint` on the SAM template, on every push and pull request.
 
 ## Deploy to AWS
 
@@ -92,14 +107,6 @@ To remove everything: `./destroy.sh`.
 
 The app falls back to keyword matching and shows "Matched by column names" with a note. Check CloudWatch logs for the `ApiFunction`. The usual causes are a wrong model ID, a region where that model isn't offered, or model access not yet granted.
 
-## Hackathon checklist
-
-- [ ] Coding agent connected to your AWS account, with screenshots or a short recording as proof
-- [ ] Deployed with `./deploy.sh`, ideally run by your coding agent, and the Website URL opens in a private browser window
-- [ ] "Try three sample statements" works on the live URL, and the badge says "Columns read by AI"
-- [ ] Builder Center project created with the live URL, the story (see `SUBMISSION.md`), and the tags `#commercial-potential` and `#startup`
-- [ ] Submitted before the deadline, and the stack left running through judging
-
 ## Project structure
 
 ```
@@ -117,8 +124,12 @@ deploy.sh, destroy.sh
 - No accounts: each browser gets a random workspace ID. Anyone with that ID could read that workspace's results, so this is suitable for a demo, not for production use with real financial data. Cognito sign-in is the first item on the roadmap.
 - Only column names and 5 sample rows are sent to Bedrock.
 - Uploads and results expire after 14 days (S3 lifecycle + DynamoDB TTL). "Delete my data" removes them immediately.
-- `npm audit` flags the `xlsx` package from npm. It only parses files the user chooses in their own browser. For production, switch to the SheetJS build from cdn.sheetjs.com.
+- Excel parsing uses the official SheetJS build from cdn.sheetjs.com (the npm `xlsx` package is unmaintained and has known advisories). `npm audit` is clean and enforced in CI.
 
 ## Roadmap
 
 Sign-in with Cognito, PDF statements (CAMS/KFintech CAS), direct broker API sync, ITR-ready Schedule 112A and Schedule VDA exports, TDS (1%) reconciliation for crypto, grandfathering, carry-forward losses across years, year-round tax-loss alerts, and an accountant plan for managing many clients.
+
+## License
+
+[MIT](LICENSE). Lotwise gives estimates for information only and isn't tax advice.

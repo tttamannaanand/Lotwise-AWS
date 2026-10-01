@@ -107,13 +107,78 @@ def fingerprint(headers) -> str:
 # ------------------------------------------------------------------ heuristic
 
 _SYNONYMS = {
-    "date": ["tradedate", "transactiondate", "date", "orderexecutiontime", "executiontime", "time", "datetime", "timestamp", "createdat"],
-    "symbol": ["symbol", "scrip", "tradingsymbol", "instrument", "stock", "scheme", "schemename", "fundname", "market", "pair", "coin", "asset", "security", "name"],
+    "date": [
+        "tradedate",
+        "transactiondate",
+        "date",
+        "orderexecutiontime",
+        "executiontime",
+        "time",
+        "datetime",
+        "timestamp",
+        "createdat",
+    ],
+    "symbol": [
+        "symbol",
+        "scrip",
+        "tradingsymbol",
+        "instrument",
+        "stock",
+        "scheme",
+        "schemename",
+        "fundname",
+        "market",
+        "pair",
+        "coin",
+        "asset",
+        "security",
+        "name",
+    ],
     "isin": ["isin", "isincode"],
-    "side": ["tradetype", "side", "type", "buysell", "transactiontype", "action", "direction", "ordertype"],
-    "quantity": ["quantity", "qty", "units", "executedqty", "filledqty", "volume", "shares", "amountcoin", "noofunits"],
-    "price": ["price", "tradeprice", "avgprice", "averageprice", "rate", "nav", "executedprice", "unitprice"],
-    "total_inr": ["inrvalue", "amountinr", "valueinr", "totalinr", "amount", "netamount", "value", "tradevalue", "consideration", "total", "grossamount"],
+    "side": [
+        "tradetype",
+        "side",
+        "type",
+        "buysell",
+        "transactiontype",
+        "action",
+        "direction",
+        "ordertype",
+    ],
+    "quantity": [
+        "quantity",
+        "qty",
+        "units",
+        "executedqty",
+        "filledqty",
+        "volume",
+        "shares",
+        "amountcoin",
+        "noofunits",
+    ],
+    "price": [
+        "price",
+        "tradeprice",
+        "avgprice",
+        "averageprice",
+        "rate",
+        "nav",
+        "executedprice",
+        "unitprice",
+    ],
+    "total_inr": [
+        "inrvalue",
+        "amountinr",
+        "valueinr",
+        "totalinr",
+        "amount",
+        "netamount",
+        "value",
+        "tradevalue",
+        "consideration",
+        "total",
+        "grossamount",
+    ],
     "fees": ["brokerage", "fee", "fees", "commission", "tradingfee", "charges"],
 }
 
@@ -168,7 +233,25 @@ def heuristic_mapping(headers, rows):
     }
 
 
-_CRYPTO_TICKERS = {"BTC", "ETH", "USDT", "USDC", "SOL", "XRP", "DOGE", "MATIC", "POL", "BNB", "ADA", "DOT", "SHIB", "TRX", "LTC", "AVAX", "LINK"}
+_CRYPTO_TICKERS = {
+    "BTC",
+    "ETH",
+    "USDT",
+    "USDC",
+    "SOL",
+    "XRP",
+    "DOGE",
+    "MATIC",
+    "POL",
+    "BNB",
+    "ADA",
+    "DOT",
+    "SHIB",
+    "TRX",
+    "LTC",
+    "AVAX",
+    "LINK",
+}
 
 
 def guess_asset_class(symbol_values, has_isin=False):
@@ -184,7 +267,16 @@ def guess_asset_class(symbol_values, has_isin=False):
 
 
 _BUY_WORDS = ["buy", "purchase", "bought", "sip", "acquire", "switch in", "switch-in"]
-_SELL_WORDS = ["sell", "sale", "sold", "redemption", "redeem", "switch out", "switch-out", "dispose"]
+_SELL_WORDS = [
+    "sell",
+    "sale",
+    "sold",
+    "redemption",
+    "redeem",
+    "switch out",
+    "switch-out",
+    "dispose",
+]
 
 
 def classify_side(value):
@@ -255,11 +347,15 @@ def bedrock_mapping(headers, rows):
             "headers": headers,
             "sample_rows": rows[:SAMPLE_ROWS_FOR_AI],
         }
-        system = SYSTEM_PROMPT.format(fields="\n".join(f"- {k}: {v}" for k, v in FIELD_DESCRIPTIONS.items()))
+        system = SYSTEM_PROMPT.format(
+            fields="\n".join(f"- {k}: {v}" for k, v in FIELD_DESCRIPTIONS.items())
+        )
         resp = client.converse(
             modelId=model_id,
             system=[{"text": system}],
-            messages=[{"role": "user", "content": [{"text": json.dumps(payload, ensure_ascii=False)}]}],
+            messages=[
+                {"role": "user", "content": [{"text": json.dumps(payload, ensure_ascii=False)}]}
+            ],
             inferenceConfig={"maxTokens": 1200, "temperature": 0},
         )
         text = "".join(block.get("text", "") for block in resp["output"]["message"]["content"])
@@ -267,7 +363,7 @@ def bedrock_mapping(headers, rows):
         if start < 0 or end < 0:
             return None, "The AI reply did not contain a mapping."
         return validate_mapping(json.loads(text[start : end + 1]), headers), None
-    except Exception as e:  # network, permissions, model access, bad JSON
+    except Exception as e:  # noqa: BLE001 - network, permissions, model access, bad JSON
         return None, f"AI mapping unavailable ({type(e).__name__}). Used keyword matching instead."
 
 
@@ -297,7 +393,8 @@ def validate_mapping(raw, headers):
     day_first = raw.get("day_first") if isinstance(raw.get("day_first"), bool) else True
     sv = raw.get("side_values") or {}
     side_values = {
-        k: [str(v) for v in (sv.get(k) or []) if isinstance(v, (str, int, float))][:50] for k in ("buy", "sell")
+        k: [str(v) for v in (sv.get(k) or []) if isinstance(v, (str, int, float))][:50]
+        for k in ("buy", "sell")
     }
     notes = [str(n)[:200] for n in (raw.get("notes") or []) if isinstance(n, str)][:3]
     return {
@@ -318,7 +415,11 @@ def fill_gaps(primary, fallback):
     if not out["columns"]["price"] and not out["columns"]["total_inr"]:
         needed += ["price", "total_inr"]
     for f in needed:
-        if not out["columns"][f] and fallback["columns"].get(f) and fallback["columns"][f] not in used:
+        if (
+            not out["columns"][f]
+            and fallback["columns"].get(f)
+            and fallback["columns"][f] not in used
+        ):
             out["columns"][f] = fallback["columns"][f]
             out["confidence"][f] = min(0.5, fallback["confidence"].get(f, 0.5))
             used.add(out["columns"][f])

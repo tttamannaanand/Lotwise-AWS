@@ -24,7 +24,16 @@ from mapper import classify_side
 _QUOTES = ["INR", "USDT", "USDC", "BTC", "ETH", "BUSD", "DAI", "FDUSD"]
 
 _ISO_FORMATS = ["%Y-%m-%d", "%Y/%m/%d", "%Y%m%d", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"]
-_NAMED_MONTH = ["%d-%b-%Y", "%d %b %Y", "%d-%b-%y", "%d %B %Y", "%d-%B-%Y", "%b %d, %Y", "%B %d, %Y", "%d/%b/%Y"]
+_NAMED_MONTH = [
+    "%d-%b-%Y",
+    "%d %b %Y",
+    "%d-%b-%y",
+    "%d %B %Y",
+    "%d-%B-%Y",
+    "%b %d, %Y",
+    "%B %d, %Y",
+    "%d/%b/%Y",
+]
 _DAY_FIRST = ["%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y", "%d/%m/%y", "%d-%m-%y"]
 _MONTH_FIRST = ["%m/%d/%Y", "%m-%d-%Y", "%m/%d/%y"]
 
@@ -33,7 +42,11 @@ def parse_date(value, day_first=True):
     v = (value or "").strip()
     if not v:
         return None
-    formats = _ISO_FORMATS + _NAMED_MONTH + (_DAY_FIRST + _MONTH_FIRST if day_first else _MONTH_FIRST + _DAY_FIRST)
+    formats = (
+        _ISO_FORMATS
+        + _NAMED_MONTH
+        + (_DAY_FIRST + _MONTH_FIRST if day_first else _MONTH_FIRST + _DAY_FIRST)
+    )
     candidates = [v, v.split("T")[0], v.split(" ")[0], " ".join(v.split(" ")[:3])]
     for c in candidates:
         for f in formats:
@@ -94,7 +107,9 @@ def normalize_rows(headers, rows, mapping, import_id="preview"):
     if idx["date"] is None or idx["symbol"] is None or idx["quantity"] is None:
         return [], [{"row": 0, "message": "Map the date, symbol and quantity columns to continue."}]
     if idx["price"] is None and idx["total_inr"] is None:
-        return [], [{"row": 0, "message": "Map either a price column or a total rupee value column."}]
+        return [], [
+            {"row": 0, "message": "Map either a price column or a total rupee value column."}
+        ]
 
     for n, row in enumerate(rows, start=1):
         date = parse_date(get(row, "date"), day_first)
@@ -107,7 +122,9 @@ def normalize_rows(headers, rows, mapping, import_id="preview"):
             continue
         qty = parse_number(get(row, "quantity"))
         if qty is None or qty == 0:
-            errors.append({"row": n, "message": f"Quantity '{get(row, 'quantity')}' is not a number."})
+            errors.append(
+                {"row": n, "message": f"Quantity '{get(row, 'quantity')}' is not a number."}
+            )
             continue
 
         # Side: explicit column first, else sign of quantity.
@@ -122,7 +139,12 @@ def normalize_rows(headers, rows, mapping, import_id="preview"):
                 guess = classify_side(raw_side)
                 side = guess.upper() if guess else None
             if not side:
-                errors.append({"row": n, "message": f"Could not tell if '{get(row, 'side')}' is a buy or a sell."})
+                errors.append(
+                    {
+                        "row": n,
+                        "message": f"Could not tell if '{get(row, 'side')}' is a buy or a sell.",
+                    }
+                )
                 continue
         else:
             side = "SELL" if qty < 0 else "BUY"
@@ -138,7 +160,11 @@ def normalize_rows(headers, rows, mapping, import_id="preview"):
         if asset_class == "crypto":
             base, quote = split_pair(symbol_raw)
             if quote == "INR":
-                value = total_inr if total_inr is not None else (qty * price if price is not None else None)
+                value = (
+                    total_inr
+                    if total_inr is not None
+                    else (qty * price if price is not None else None)
+                )
             else:
                 value = total_inr
             if value is None:
@@ -149,17 +175,40 @@ def normalize_rows(headers, rows, mapping, import_id="preview"):
                 )
                 errors.append({"row": n, "message": msg})
                 continue
-            legs.append(_leg(date, "crypto", base, base, None, side, qty, value, n, import_id, fees))
+            legs.append(
+                _leg(date, "crypto", base, base, None, side, qty, value, n, import_id, fees)
+            )
             if quote != "INR":
                 if price is None:
-                    errors.append({"row": n, "message": f"Needs the {quote} price to work out how much {quote} changed hands."})
+                    errors.append(
+                        {
+                            "row": n,
+                            "message": f"Needs the {quote} price to work out how much {quote} changed hands.",
+                        }
+                    )
                     legs.pop()
                     continue
                 quote_qty = qty * price
                 quote_side = "SELL" if side == "BUY" else "BUY"
-                legs.append(_leg(date, "crypto", quote, quote, None, quote_side, quote_qty, value, n, import_id, Decimal("0")))
+                legs.append(
+                    _leg(
+                        date,
+                        "crypto",
+                        quote,
+                        quote,
+                        None,
+                        quote_side,
+                        quote_qty,
+                        value,
+                        n,
+                        import_id,
+                        Decimal("0"),
+                    )
+                )
         else:
-            gross = total_inr if total_inr is not None else (qty * price if price is not None else None)
+            gross = (
+                total_inr if total_inr is not None else (qty * price if price is not None else None)
+            )
             if gross is None:
                 errors.append({"row": n, "message": "Needs a price or total value."})
                 continue
@@ -168,7 +217,9 @@ def normalize_rows(headers, rows, mapping, import_id="preview"):
             symbol = symbol_raw.upper() if len(symbol_raw) <= 20 else symbol_raw
             key = isin or re.sub(r"\s+", " ", symbol_raw.strip().upper())
             value = gross + fees if side == "BUY" else gross - fees
-            legs.append(_leg(date, "equity", key, symbol, isin, side, qty, value, n, import_id, fees))
+            legs.append(
+                _leg(date, "equity", key, symbol, isin, side, qty, value, n, import_id, fees)
+            )
     return legs, errors
 
 
