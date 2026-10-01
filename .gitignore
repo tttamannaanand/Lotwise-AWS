@@ -1,0 +1,8 @@
+node_modules/
+frontend/dist/
+.localdata/
+__pycache__/
+.aws-sam/
+samconfig.toml
+.DS_Store
+SUBMISSION.md

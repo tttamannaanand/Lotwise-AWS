@@ -1,0 +1,150 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Lotwise - capital gains tax-lot tracker for Indian equity, mutual funds and crypto
+
+Parameters:
+  BedrockModelId:
+    Type: String
+    Description: >-
+      Bedrock model ID or inference profile ID used for AI column mapping.
+      Copy it from the Bedrock console (Model catalog / Cross-region inference).
+      Leave empty to run with keyword matching only.
+    Default: ""
+  DataRetentionDays:
+    Type: Number
+    Default: 14
+    MinValue: 1
+    MaxValue: 90
+    Description: Days before uploaded files and results are deleted automatically.
+
+Conditions:
+  HasModel: !Not [!Equals [!Ref BedrockModelId, ""]]
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Architectures: [arm64]
+    MemorySize: 1024
+    Timeout: 60
+    Environment:
+      Variables:
+        TABLE_NAME: !Ref DataTable
+        BUCKET_NAME: !Ref DataBucket
+        BEDROCK_MODEL_ID: !Ref BedrockModelId
+        BEDROCK_ENABLED: !If [HasModel, "true", "false"]
+        DATA_RETENTION_DAYS: !Ref DataRetentionDays
+
+Resources:
+  # ------------------------------------------------------------------ data
+  DataTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: PK, AttributeType: S }
+        - { AttributeName: SK, AttributeType: S }
+      KeySchema:
+        - { AttributeName: PK, KeyType: HASH }
+        - { AttributeName: SK, KeyType: RANGE }
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+      SSESpecification:
+        SSEEnabled: true
+
+  DataBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireWorkspaceData
+            Status: Enabled
+            Prefix: workspaces/
+            ExpirationInDays: !Ref DataRetentionDays
+
+  # ------------------------------------------------------------------- api
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins: ["*"]
+        AllowMethods: [GET, POST, DELETE, OPTIONS]
+        AllowHeaders: [Content-Type]
+        MaxAge: 600
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 40
+        ThrottlingRateLimit: 20
+
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/src/
+      Handler: app.handler
+      Description: Lotwise API - import, AI column mapping, FIFO lot matching, tax report
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref DataTable }
+        - S3CrudPolicy: { BucketName: !Ref DataBucket }
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+              Resource: "*"
+      Events:
+        Health:        { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Path: /health, Method: GET } }
+        CreateImport:  { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Path: /imports, Method: POST } }
+        ListImports:   { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Path: /imports, Method: GET } }
+        ImportAction:  { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Path: "/imports/{id}/{action}", Method: POST } }
+        DeleteImport:  { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Path: "/imports/{id}", Method: DELETE } }
+        Report:        { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Path: /report, Method: GET } }
+        ClearWorkspace: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Path: /workspace, Method: DELETE } }
+
+  ApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${ApiFunction}
+      RetentionInDays: 14
+
+  # ------------------------------------------------------------------- web
+  WebBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  WebFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/web/
+      Handler: web.handler
+      MemorySize: 256
+      Timeout: 10
+      Description: Lotwise website - serves the built frontend from the web bucket
+      Environment:
+        Variables:
+          WEB_BUCKET: !Ref WebBucket
+      Policies:
+        - S3ReadPolicy: { BucketName: !Ref WebBucket }
+      Events:
+        Root:  { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Path: /, Method: GET } }
+        Files: { Type: HttpApi, Properties: { ApiId: !Ref HttpApi, Path: "/{proxy+}", Method: GET } }
+
+Outputs:
+  WebsiteUrl:
+    Description: Public URL of the app (submit this to the hackathon)
+    Value: !Sub https://${HttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
+  ApiUrl:
+    Description: API base URL
+    Value: !Sub https://${HttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
+  WebBucketName:
+    Value: !Ref WebBucket

@@ -1,0 +1,17 @@
+Statement of Transactions
+Investor: Demo Investor (sample data)
+Period: 01-Jan-2025 to 31-Mar-2026
+Scheme Name,ISIN,Transaction Date,Transaction Type,Units,NAV (₹),Amount (₹)
+Example Bharat Nifty 50 Index Fund - Direct Growth,INF000X01019,10-Jan-2025,Purchase - SIP,250.000,100.00,"25,000.00"
+Example Bharat Nifty 50 Index Fund - Direct Growth,INF000X01019,10-Feb-2025,Purchase - SIP,256.410,97.50,"25,000.00"
+Example Bharat Nifty 50 Index Fund - Direct Growth,INF000X01019,10-Mar-2025,Purchase - SIP,247.036,101.20,"25,000.00"
+Example Bharat Nifty 50 Index Fund - Direct Growth,INF000X01019,10-Apr-2025,Purchase - SIP,238.550,104.80,"25,000.00"
+Example Bharat Nifty 50 Index Fund - Direct Growth,INF000X01019,10-May-2025,Purchase - SIP,235.627,106.10,"25,000.00"
+Example Bharat Nifty 50 Index Fund - Direct Growth,INF000X01019,10-Jun-2025,Purchase - SIP,228.728,109.30,"25,000.00"
+Example Bharat Nifty 50 Index Fund - Direct Growth,INF000X01019,10-Jul-2025,Purchase - SIP,231.481,108.00,"25,000.00"
+Example Bharat Nifty 50 Index Fund - Direct Growth,INF000X01019,10-Aug-2025,Purchase - SIP,224.014,111.60,"25,000.00"
+Example Bharat Nifty 50 Index Fund - Direct Growth,INF000X01019,10-Sep-2025,Purchase - SIP,219.491,113.90,"25,000.00"
+Example Bharat Nifty 50 Index Fund - Direct Growth,INF000X01019,10-Oct-2025,Purchase - SIP,222.420,112.40,"25,000.00"
+Example Bharat Nifty 50 Index Fund - Direct Growth,INF000X01019,10-Nov-2025,Purchase - SIP,214.041,116.80,"25,000.00"
+Example Bharat Nifty 50 Index Fund - Direct Growth,INF000X01019,10-Dec-2025,Purchase - SIP,209.205,119.50,"25,000.00"
+Example Bharat Nifty 50 Index Fund - Direct Growth,INF000X01019,15-Mar-2026,Redemption,1227.623,124.60,"1,52,961.83"
