@@ -60,20 +60,32 @@ def match_lots(legs, long_term_months=12):
             if leg["side"] == "BUY":
                 lots.append({"date": leg["date"], "qty": qty, "unit_cost": value / qty})
                 buy_dates.add(leg["date"])
-                if asset_class == "equity" and leg["date"] < GRANDFATHERING_CUTOFF and key not in grandfather_flagged:
+                if (
+                    asset_class == "equity"
+                    and leg["date"] < GRANDFATHERING_CUTOFF
+                    and key not in grandfather_flagged
+                ):
                     grandfather_flagged.add(key)
-                    warnings.append({
-                        "code": "grandfathering",
-                        "message": f"{leg['symbol']} has purchases before 1 Feb 2018. The 31 Jan 2018 fair-value rule may lower your gain; Lotwise uses actual cost.",
-                    })
+                    warnings.append(
+                        {
+                            "code": "grandfathering",
+                            "message": f"{leg['symbol']} has purchases before 1 Feb 2018. The 31 Jan 2018 fair-value rule may lower your gain; Lotwise uses actual cost.",
+                        }
+                    )
                 continue
 
-            if asset_class == "equity" and leg["date"] in buy_dates and (key, leg["date"]) not in intraday_flagged:
+            if (
+                asset_class == "equity"
+                and leg["date"] in buy_dates
+                and (key, leg["date"]) not in intraday_flagged
+            ):
                 intraday_flagged.add((key, leg["date"]))
-                warnings.append({
-                    "code": "intraday",
-                    "message": f"{leg['symbol']} was bought and sold on {leg['date']}. Intraday trading is usually business income, not capital gains. It is matched here as a normal sale.",
-                })
+                warnings.append(
+                    {
+                        "code": "intraday",
+                        "message": f"{leg['symbol']} was bought and sold on {leg['date']}. Intraday trading is usually business income, not capital gains. It is matched here as a normal sale.",
+                    }
+                )
 
             unit_proceeds = value / qty
             remaining = qty
@@ -85,15 +97,19 @@ def match_lots(legs, long_term_months=12):
                 proceeds = take * unit_proceeds
                 term = "VDA"
                 if asset_class == "equity":
-                    term = "LT" if _is_long_term(lot["date"], leg["date"], long_term_months) else "ST"
-                parts.append({
-                    "buy_date": lot["date"],
-                    "quantity": str(take),
-                    "cost": str(_r(cost)),
-                    "proceeds": str(_r(proceeds)),
-                    "gain": str(_r(proceeds - cost)),
-                    "term": term,
-                })
+                    term = (
+                        "LT" if _is_long_term(lot["date"], leg["date"], long_term_months) else "ST"
+                    )
+                parts.append(
+                    {
+                        "buy_date": lot["date"],
+                        "quantity": str(take),
+                        "cost": str(_r(cost)),
+                        "proceeds": str(_r(proceeds)),
+                        "gain": str(_r(proceeds - cost)),
+                        "term": term,
+                    }
+                )
                 lot["qty"] -= take
                 remaining -= take
                 if lot["qty"] == 0:
@@ -101,34 +117,40 @@ def match_lots(legs, long_term_months=12):
 
             unmatched = str(remaining) if remaining > 0 else None
             if unmatched:
-                warnings.append({
-                    "code": "unmatched",
-                    "message": f"Sold {remaining.normalize()} more {leg['symbol']} on {leg['date']} than the uploaded purchases cover. Upload older statements; the unmatched part is left out of totals.",
-                })
-            transfers.append({
-                "id": f"{leg['import_id']}:{leg['row']}:{asset_class}:{key}",
-                "asset_class": asset_class,
-                "symbol": leg["symbol"],
-                "isin": leg.get("isin"),
-                "sell_date": leg["date"],
-                "fy": fy_for_date(leg["date"]),
-                "quantity": leg["quantity"],
-                "proceeds": str(_r(sum((Decimal(p["proceeds"]) for p in parts), ZERO))),
-                "cost": str(_r(sum((Decimal(p["cost"]) for p in parts), ZERO))),
-                "gain": str(_r(sum((Decimal(p["gain"]) for p in parts), ZERO))),
-                "parts": parts,
-                "unmatched_quantity": unmatched,
-            })
+                warnings.append(
+                    {
+                        "code": "unmatched",
+                        "message": f"Sold {remaining.normalize()} more {leg['symbol']} on {leg['date']} than the uploaded purchases cover. Upload older statements; the unmatched part is left out of totals.",
+                    }
+                )
+            transfers.append(
+                {
+                    "id": f"{leg['import_id']}:{leg['row']}:{asset_class}:{key}",
+                    "asset_class": asset_class,
+                    "symbol": leg["symbol"],
+                    "isin": leg.get("isin"),
+                    "sell_date": leg["date"],
+                    "fy": fy_for_date(leg["date"]),
+                    "quantity": leg["quantity"],
+                    "proceeds": str(_r(sum((Decimal(p["proceeds"]) for p in parts), ZERO))),
+                    "cost": str(_r(sum((Decimal(p["cost"]) for p in parts), ZERO))),
+                    "gain": str(_r(sum((Decimal(p["gain"]) for p in parts), ZERO))),
+                    "parts": parts,
+                    "unmatched_quantity": unmatched,
+                }
+            )
 
         for lot in lots:
             if lot["qty"] > 0:
-                holdings.append({
-                    "asset_class": asset_class,
-                    "symbol": next(l["symbol"] for _, l in items),
-                    "buy_date": lot["date"],
-                    "quantity": str(lot["qty"].normalize()),
-                    "cost": str(_r(lot["qty"] * lot["unit_cost"])),
-                })
+                holdings.append(
+                    {
+                        "asset_class": asset_class,
+                        "symbol": next(leg["symbol"] for _, leg in items),
+                        "buy_date": lot["date"],
+                        "quantity": str(lot["qty"].normalize()),
+                        "cost": str(_r(lot["qty"] * lot["unit_cost"])),
+                    }
+                )
 
     transfers.sort(key=lambda t: (t["sell_date"], t["symbol"]))
     holdings.sort(key=lambda h: (h["asset_class"], h["symbol"], h["buy_date"]))
@@ -231,10 +253,12 @@ def build_report(legs, fy=None):
         fy = completed[0] if completed else years[0]
     summary = summarize(transfers, fy) if fy else None
     if fy and summary and not summary["rules_available"]:
-        warnings.append({
-            "code": "rules",
-            "message": f"Tax rates for FY {fy} are not set up yet. Gains are calculated, but no tax estimate is shown.",
-        })
+        warnings.append(
+            {
+                "code": "rules",
+                "message": f"Tax rates for FY {fy} are not set up yet. Gains are calculated, but no tax estimate is shown.",
+            }
+        )
     return {
         "fy": fy,
         "years": years,

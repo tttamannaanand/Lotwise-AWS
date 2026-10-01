@@ -8,7 +8,6 @@ Uses local files instead of S3/DynamoDB and keyword matching instead of
 Bedrock (set BEDROCK_ENABLED=true + AWS credentials to try Bedrock locally).
 """
 
-import json
 import os
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -48,7 +47,7 @@ class Handler(BaseHTTPRequestHandler):
     do_GET = do_POST = do_DELETE = do_OPTIONS = _run
 
     def log_message(self, fmt, *args):
-        sys.stderr.write("%s %s\n" % (self.command, self.path))
+        sys.stderr.write(f"{self.command} {self.path}\n")
 
 
 if __name__ == "__main__":

@@ -53,7 +53,7 @@ def _body(event):
     try:
         return json.loads(raw)
     except json.JSONDecodeError:
-        raise ApiError(400, "Request body must be JSON.")
+        raise ApiError(400, "Request body must be JSON.") from None
 
 
 def _ws(value):
@@ -93,7 +93,7 @@ def create_import(body):
     try:
         headers, rows = parse_csv(content)
     except ValueError as e:
-        raise ApiError(422, str(e))
+        raise ApiError(422, str(e)) from e
 
     fp = fingerprint(headers)
     template = store().get_template(fp)
@@ -102,15 +102,19 @@ def create_import(body):
     import_id = uuid.uuid4().hex[:12]
     s = store()
     s.put_file(ws, import_id, "raw.csv", content)
-    s.put_import(ws, import_id, {
-        "importId": import_id,
-        "filename": filename,
-        "status": "pending",
-        "fingerprint": fp,
-        "source": source,
-        "mapping": mapping,
-        "createdAt": int(time.time()),
-    })
+    s.put_import(
+        ws,
+        import_id,
+        {
+            "importId": import_id,
+            "filename": filename,
+            "status": "pending",
+            "fingerprint": fp,
+            "source": source,
+            "mapping": mapping,
+            "createdAt": int(time.time()),
+        },
+    )
     return {
         "importId": import_id,
         "filename": filename,
@@ -153,24 +157,43 @@ def confirm_import(import_id, body):
     # Only column names and side labels are stored, never trade data.
     template = {k: mapping[k] for k in ("columns", "asset_class", "day_first", "side_values")}
     s.put_template(meta["fingerprint"], template, headers)
-    meta.update({
-        "status": "confirmed",
-        "mapping": mapping,
-        "assetClass": mapping["asset_class"],
-        "legCount": len(legs),
-        "errorCount": len(errors),
-        "confirmedAt": int(time.time()),
-    })
+    meta.update(
+        {
+            "status": "confirmed",
+            "mapping": mapping,
+            "assetClass": mapping["asset_class"],
+            "legCount": len(legs),
+            "errorCount": len(errors),
+            "confirmedAt": int(time.time()),
+        }
+    )
     for k in ("PK", "SK", "expiresAt"):
         meta.pop(k, None)
     s.put_import(ws, import_id, meta)
-    return {"importId": import_id, "legCount": len(legs), "errorCount": len(errors), "errors": errors[:20]}
+    return {
+        "importId": import_id,
+        "legCount": len(legs),
+        "errorCount": len(errors),
+        "errors": errors[:20],
+    }
 
 
 def list_imports(ws):
     items = store().list_imports(_ws(ws))
     out = [
-        {k: i.get(k) for k in ("importId", "filename", "status", "source", "assetClass", "legCount", "errorCount", "createdAt")}
+        {
+            k: i.get(k)
+            for k in (
+                "importId",
+                "filename",
+                "status",
+                "source",
+                "assetClass",
+                "legCount",
+                "errorCount",
+                "createdAt",
+            )
+        }
         for i in items
     ]
     return {"imports": sorted(out, key=lambda i: i.get("createdAt") or 0)}
@@ -197,7 +220,15 @@ def report(ws, fy):
     if fy is not None and not re.match(r"^\d{4}-\d{2}$", fy):
         raise ApiError(400, "fy must look like 2025-26.")
     if not legs:
-        return {"fy": None, "years": [], "summary": None, "transfers": [], "holdings": [], "warnings": [], "empty": True}
+        return {
+            "fy": None,
+            "years": [],
+            "summary": None,
+            "transfers": [],
+            "holdings": [],
+            "warnings": [],
+            "empty": True,
+        }
     return build_report(legs, fy)
 
 
@@ -234,6 +265,11 @@ def handler(event, context=None):
         raise ApiError(404, "Not found.")
     except ApiError as e:
         return _resp(e.status, {"error": e.message})
-    except Exception:
+    except Exception:  # noqa: BLE001 - last-resort handler; logs and returns a clean 500
         traceback.print_exc()
-        return _resp(500, {"error": "Something went wrong on our side. Try again, and if it repeats, re-upload the file."})
+        return _resp(
+            500,
+            {
+                "error": "Something went wrong on our side. Try again, and if it repeats, re-upload the file."
+            },
+        )

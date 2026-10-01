@@ -2,11 +2,13 @@
 
 Used instead of CloudFront, which new AWS accounts can't create until verified.
 """
+
 import base64
 import mimetypes
 import os
 
 import boto3
+from botocore.exceptions import ClientError
 
 s3 = boto3.client("s3")
 BUCKET = os.environ["WEB_BUCKET"]
@@ -17,11 +19,9 @@ def handler(event, context=None):
     key = (event.get("rawPath") or "/").lstrip("/") or "index.html"
     try:
         obj = s3.get_object(Bucket=BUCKET, Key=key)
-    except s3.exceptions.NoSuchKey:
-        # SPA fallback: unknown paths get the app shell
-        key = "index.html"
-        obj = s3.get_object(Bucket=BUCKET, Key=key)
-    except Exception:
+    except ClientError:
+        # SPA fallback: unknown paths get the app shell. Without s3:ListBucket,
+        # S3 reports a missing key as AccessDenied rather than NoSuchKey.
         key = "index.html"
         obj = s3.get_object(Bucket=BUCKET, Key=key)
     ctype = obj.get("ContentType") or mimetypes.guess_type(key)[0] or "application/octet-stream"
@@ -31,4 +31,9 @@ def handler(event, context=None):
     headers = {"Content-Type": ctype, "Cache-Control": obj.get("CacheControl") or "no-cache"}
     if ctype.startswith(TEXT_TYPES):
         return {"statusCode": 200, "headers": headers, "body": body.decode("utf-8")}
-    return {"statusCode": 200, "headers": headers, "body": base64.b64encode(body).decode(), "isBase64Encoded": True}
+    return {
+        "statusCode": 200,
+        "headers": headers,
+        "body": base64.b64encode(body).decode(),
+        "isBase64Encoded": True,
+    }
