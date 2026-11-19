@@ -101,6 +101,51 @@ def legs_for(name):
     return legs
 
 
+def _eq_mapping(**cols):
+    base = {"date": "Date", "symbol": "Symbol", "quantity": "Qty", "price": "Price",
+            "total_inr": None, "fees": None, "side": None, "isin": None}
+    base.update(cols)
+    return {"columns": base, "side_values": {}, "asset_class": "equity", "day_first": True}
+
+
+def test_normalize_infers_side_from_quantity_sign():
+    legs, errors = normalize_rows(
+        ["Date", "Symbol", "Qty", "Price"],
+        [["01-Apr-2025", "ABC", "10", "100"], ["02-Apr-2025", "ABC", "-4", "110"]],
+        _eq_mapping(),
+    )
+    assert errors == []
+    assert [(l["side"], l["quantity"]) for l in legs] == [("BUY", "10"), ("SELL", "4")]
+
+
+def test_normalize_requires_core_columns():
+    legs, errors = normalize_rows(["Date", "Symbol", "Qty"], [["01-Apr-2025", "ABC", "1"]], _eq_mapping((price=None))
+    assert legs == [] and errors[0]["row"] == 0  # neither price nor total mapped
+    legs, errors = normalize_rows(["Date", "Qty", "Price"], [["01-Apr-2025", "1", "5"]], _eq_mapping(symbol=None))
+    assert legs == [] and "symbol" in errors[0]["message"]
+
+
+def test_normalize_reports_bad_rows_and_keeps_good_ones():
+    rows = [
+        ["not a date", "ABC", "1", "10"],
+        ["01-Apr-2025", "", "1", "10"],
+        ["01-Apr-2025", "ABC", "zero", "10"],
+        ["01-Apr-2025", "ABC", "2", "10"],
+    ]
+    legs, errors = normalize_rows(["Date", "Symbol", "Qty", "Price"], rows, _eq_mapping())
+    assert [e["row"] for e in errors] == [1, 2, 3]  # 1-based data row numbers
+    assert len(legs) == 1 and legs[0]["row"] == 4
+
+
+def test_normalize_equity_fees_adjust_value():
+    legs, _ = normalize_rows(
+        ["Date", "Symbol", "Qty", "Price", "Side", "Fees"],
+        [["01-Apr-2025", "ABC", "10", "100", "buy", "5"], ["02-Apr-2025", "ABC", "10", "100", "sell", "5"]],
+        _eq_mapping(side="Side", fees="Fees"),
+    )
+    assert [Decimal(l["value_inr"]) for l in legs] == [Decimal("1005"), Decimal("995")]
+
+
 def test_equity_fifo_and_terms():
     rep = build_report(legs_for("broker_tradebook.csv"), "2025-26")
     kaveri = next(t for t in rep["transfers"] if t["symbol"] == "KAVERIPOWER")

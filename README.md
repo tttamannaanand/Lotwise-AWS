@@ -61,7 +61,7 @@ npm run dev
 
 Click **Try three sample statements**, then **Import all 3 files**. Expected result for FY 2025-26: estimated tax ₹48,194.
 
-Tests: `cd backend && pip install pytest && python3 -m pytest -q` (17 tests, including hand-verified tax figures and simulated Bedrock responses).
+Tests: `cd backend && pip install pytest && python3 -m pytest -q` (21 tests, including hand-verified tax figures and simulated Bedrock responses).
 
 ## Deploy to AWS
 
