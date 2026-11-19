@@ -119,7 +119,7 @@ def test_normalize_infers_side_from_quantity_sign():
 
 
 def test_normalize_requires_core_columns():
-    legs, errors = normalize_rows(["Date", "Symbol", "Qty"], [["01-Apr-2025", "ABC", "1"]], _eq_mapping((price=None))
+    legs, errors = normalize_rows(["Date", "Symbol", "Qty"], [["01-Apr-2025", "ABC", "1"]], _eq_mapping(price=None))
     assert legs == [] and errors[0]["row"] == 0  # neither price nor total mapped
     legs, errors = normalize_rows(["Date", "Qty", "Price"], [["01-Apr-2025", "1", "5"]], _eq_mapping(symbol=None))
     assert legs == [] and "symbol" in errors[0]["message"]
